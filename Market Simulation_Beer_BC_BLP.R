@@ -13,20 +13,22 @@ library(Rcpp)
 library(RcppArmadillo)
 library(bayesm)
 library(ggplot2)
+library(ggpmisc)
 library(tikzDevice)
 library(plyr)
 library(latex2exp)
 library(FixedPoint)
 library(dplyr)
-
+library(reshape2)
+library(tidyr)
 
 ###Increase memory capacities
 memory.limit(size=100000000)
 
 load("Estimation_Data_Beer_20170423.Rdata")
-products = c("Amstel Extra Lata 37,5 cl","Amstel Extra Lata 33 cl","Amstel Lata 37,5 cl","Amstel Lata 33 cl","Amstel Cl?sica Lata 33 cl",
+products = c("Amstel Extra Lata 37,5 cl","Amstel Extra Lata 33 cl","Amstel Lata 37,5 cl","Amstel Lata 33 cl","Amstel Clasica Lata 33 cl",
              "Cruzcampo Lata 33 cl","Estrella Damm Lata 33 cl","Estrella Galicia Lata 33 cl","Heineken Lata 33 cl","Mahou 5 Estrellas Lata 33 cl",
-             "Mahou Cl?sica Lata 33 cl","San Miguel Lata 33 cl","Voll Damm Lata 33 cl","Steinburg (Marca Blanca Mercadona) Lata 33 cl",
+             "Mahou Clasica Lata 33 cl","San Miguel Lata 33 cl","Voll Damm Lata 33 cl","Steinburg (Marca Blanca Mercadona) Lata 33 cl",
              "Marca Blanca Carrefour Lata 33 cl")
 
 #reorder that price is first in the design matrix
@@ -243,11 +245,40 @@ res_matrix <- data.frame(
 # add to results list
 scenarios[["brand_comp"]] <- res_matrix
 
-scenarios[["brand_comp"]] %>% 
-  ggplot(aes(x = product, y = equi_price)) +
-    geom_bar(stat = "identity")+
-    #geom_bar(aes(y = equi_share), stat = "identity")+
-    theme(axis.text.x = element_text(angle = 90))
+########################################################
+# Plotting
+########################################################
 
-# display results of full competition vs. 
-cbind(scenarios[["full_comp"]], scenarios[["brand_comp"]])
+# basic plot of one scenario
+scenarios[["brand_comp"]] %>% 
+  melt() %>% 
+    ggplot(aes(x = reorder(product, value) , y = value)) +
+      geom_bar(stat = "identity", position = "dodge") +
+      coord_flip() +
+      theme(axis.text.x = element_text(angle = 90)) +
+      facet_wrap(~variable, scales = "free_x")
+
+# uses all competitive situations in the scenarios list and plots them side by side
+scenarios %>% 
+  melt() %>% 
+  rename(comp_scenario = L1) %>% 
+  ggplot(aes(x = reorder(product, value) , y = value, fill = comp_scenario)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  coord_flip() +
+  labs(x = "Beer Brand",
+       y = "Price / Market Share") +
+  facet_wrap(~variable, scales = "free_x")
+
+# price-share scatterplot, w/o outside option (either for single scenario or all)
+#scenarios[["brand_comp"]] %>% 
+bind_rows(scenarios) %>% 
+  filter(product != "Outside") %>% 
+    ggplot(aes(x = equi_price, y = equi_share)) +
+    geom_point() +
+    geom_smooth(method = "lm", se = FALSE) +
+    stat_poly_eq(formula = y ~ x, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~~~~")), 
+                 parse=TRUE,label.x.npc = "right",
+                 output.type = "expression")
+
+cor(scenarios[["brand_comp"]]$equi_price, scenarios[["brand_comp"]]$equi_share)
+
