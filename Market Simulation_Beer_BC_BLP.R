@@ -312,6 +312,70 @@ res_matrix <- data.frame(
 # add to results list
 scenarios[["five_full_comp"]] <- res_matrix
 
+###########################################################################
+# Only two Amstel, two Estrella and one Heineken (Merger Amstel and Heineken, bc highly correlated betas)
+###########################################################################
+
+# ingredients
+nplayers = 5 + 1 
+min_p = 0.22
+prices_init = c(rep(min_p,nplayers - 1),0)
+designBase = rbind(diag(nplayers-1),rep(0,nplayers-1))
+Xdata = cbind(prices_init,designBase); colnames(Xdata)[1] = "PRICE" 
+Ownership = array(0,dim=c(nplayers,nplayers))
+Ownership[1:(nplayers-1),1:(nplayers-1)] = diag((nplayers-1))
+
+# define which brands compete on price, i.e. are owned by different companies
+# Amstel (two brands)
+for (i in c(1:2,5)){
+  for (k in c(1:2,5)){
+    Ownership[i,k] <- 1
+  }
+}
+# Estrella (two brands)
+for (i in 3:4){
+  for (k in 3:4){
+    Ownership[i,k] <- 1
+  }
+}
+
+inside_row=which(rowSums(Ownership) != 0, arr.ind = TRUE)
+p0=Xdata[inside_row,"PRICE"]
+costBase = as.vector(prices_init*0.9)
+MC = costBase[inside_row]
+
+### Run Fixed-Point algorithm with Xi-markup equation (reliable and fast: See Table 3 in paper for comparison)
+p_Markup_Xi_FixedPoint_BC_BLP = FixedPoint(Function = function(price_vec) FixedPoint_BLP_Xi(price_vec,MC=MC,
+                                                                                            ownership=Ownership,Xdata=Xdata,beta_draws=beta_BC_LLMns[,(c(1,2,4,7,9,10,11))],pr=1), 
+                                           Inputs = p0, MaxIter = 10000, ConvergenceMetricThreshold = 1e-10, Method = "Anderson")
+
+p_Markup_Xi_FixedPoint_BC_BLP$FixedPoint
+
+Optimal_prices <- array(0,dim=c(nplayers,2))
+rownames(Optimal_prices) = c(products[c(2,5,7,8,9)],"Outside")
+colnames(Optimal_prices) = c("Equilibrium Price","Equilibrium Shares")
+# Save equi-prices
+Optimal_prices[,"Equilibrium Price"] <-c(p_Markup_Xi_FixedPoint_BC_BLP$FixedPoint,0)
+computeShares_BC_BLP <- function(prices, beta, design, pr = 1) {
+  fullDesign <- cbind(prices,design) ###put prices to the last position here
+  probabilities_BC_BLP_log_cpp(beta,fullDesign,pr)
+}
+Optimal_prices[,"Equilibrium Shares"] <- as.vector(computeShares_BC_BLP(Optimal_prices[,"Equilibrium Price"],
+                                                                        beta_BC_LLMns[,c(1,2,4,7,9,10,11)],designBase,pr=1))
+
+round(Optimal_prices,2)
+
+# store results in data frame
+res_matrix <- data.frame(
+  product = rownames(Optimal_prices),
+  equi_price = as.numeric(c(p_Markup_Xi_FixedPoint_BC_BLP$FixedPoint,0)),
+  equi_share = as.vector(computeShares_BC_BLP(Optimal_prices[,"Equilibrium Price"],
+                                              beta_BC_LLMns[,c(1,2,4,7,9,10,11)],designBase,pr=1)))
+
+
+# add to results list
+scenarios[["five_merge_comp"]] <- res_matrix
+
 
 ###########################################################################
 # Only two Amstel, two Estrella and one Heineken (Full Competition)
@@ -422,19 +486,23 @@ res_matrix <- data.frame(
 scenarios[["five_monopoly"]] <- res_matrix
 
 ########################################################
-# Compute 
+# Compute Average Prices in the Market, Weighted by Market Share
 ########################################################
-
-# Average Prices in the Market, Weighted by Market Share
 
 w_a_p_full_comp <- t(scenarios[["full_comp"]]$equi_price) %*% scenarios[["full_comp"]]$equi_share
 w_a_p_brand_comp <- t(scenarios[["brand_comp"]]$equi_price) %*% scenarios[["brand_comp"]]$equi_share
 
 w_a_p_five_full_comp <- t(scenarios[["five_full_comp"]]$equi_price) %*% scenarios[["five_full_comp"]]$equi_share
 w_a_p_five_brand_comp <- t(scenarios[["five_brand_comp"]]$equi_price) %*% scenarios[["five_brand_comp"]]$equi_share
+w_a_p_five_monopoly <- t(scenarios[["five_monopoly"]]$equi_price) %*% scenarios[["five_monopoly"]]$equi_share
+w_a_p_five_merge <- t(scenarios[["five_merge_comp"]]$equi_price) %*% scenarios[["five_merge_comp"]]$equi_share
 
 w_a_p_brand_comp / w_a_p_full_comp
 w_a_p_five_brand_comp / w_a_p_five_full_comp
+
+# compute average annual welfare loss for typical German consumer with the merger
+welf_loss_avg <- 102/(1/3)*(w_a_p_five_merge - w_a_p_five_brand_comp)
+welf_loss_total <- welf_loss_avg * 82000000
 
 ########################################################
 # Plotting
@@ -470,8 +538,8 @@ scenarios %>%
        y = "Price / Market Share") +
   facet_wrap(~variable, scales = "free_x")
 
-# only five brands
-scenarios[c("five_full_comp", "five_brand_comp", "five_monopoly")] %>% 
+# only five brands #c("five_full_comp", "five_brand_comp", "five_monopoly", "five_merge_comp")
+scenarios[c("five_brand_comp", "five_merge_comp")] %>% 
   melt() %>% 
   rename(comp_scenario = L1) %>% 
   ggplot(aes(x = reorder(product, value) , y = value, fill = comp_scenario)) +
