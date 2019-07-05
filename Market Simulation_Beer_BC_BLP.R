@@ -545,6 +545,7 @@ cor(beta_BC_LLMns) %>%
 cor(beta_BC_LLMns[,c(1,2,4,7,9,10,11)]) %>% 
   ggcorrplot(type = "lower", lab = TRUE)
 
+
 # histogram of all betas
 beta_BC_LLMns %>% 
     data.frame() %>% 
@@ -595,23 +596,25 @@ scenarios[c("brand_comp", "full_comp")] %>%
   melt() %>% 
   rename(comp_scenario = L1) %>% 
   ggplot(aes(x = reorder(product, value) , y = value, fill = comp_scenario)) +
-  geom_bar(stat = "identity", position = "dodge") +
+  geom_bar(stat = "identity", colour="black", position = "dodge") +
   coord_flip() +
   labs(x = "Beer Brand",
        y = "Price / Market Share") +
   facet_wrap(~variable, scales = "free_x") +
+  scale_fill_brewer(palette = "Dark2") +
   theme_bw()
 
  # only five brands #c("five_full_comp", "five_brand_comp", "five_monopoly", "five_merge_comp")
-scenarios[c("five_brand_comp", "five_merge_comp")] %>% 
+scenarios[c("five_brand_comp", "five_merge_comp", "five_monopoly")] %>% 
   melt() %>% 
   rename(comp_scenario = L1) %>% 
   ggplot(aes(x = reorder(product, value) , y = value, fill = comp_scenario)) +
-  geom_bar(stat = "identity", position = "dodge") +
+  geom_bar(stat = "identity", colour="black", position = "dodge") +
   coord_flip() +
   labs(x = "Beer Brand",
        y = "Price / Market Share") +
   facet_wrap(~variable, scales = "free_x") +
+  scale_fill_brewer(palette = "Dark2") +
   theme_bw()
 
 # price-share scatterplot, w/o outside option (either for single scenario or all)
