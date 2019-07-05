@@ -23,6 +23,8 @@ library(reshape2)
 library(tidyr)
 library(ggcorrplot)
 
+load("100k_MCMC_corrected.RData")
+
 ###Increase memory capacities
 memory.limit(size=100000000)
 
@@ -83,7 +85,18 @@ rej_rate_agg
 # check visually how much burn-in is required
 plot(out_BC$loglike, type="l")
 
-burnin = 2000
+data.frame(loglikelihood = out_BC$loglike) %>% 
+  mutate(index = row_number()) %>% 
+    ggplot(aes(x = index, y = loglikelihood)) +
+      geom_line(alpha = 0.7) +
+      geom_smooth(method = "lm", se = FALSE) +
+      stat_poly_eq(formula = y ~ x, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~~~~")), 
+                   parse=TRUE,label.x.npc = "right", label.y.npc = 0.1,
+                   output.type = "expression") +
+  theme_bw()
+      
+
+burnin = 3100
 R = dim(betastar_HB_BC)[3]
 
 betastar_HB_BC = betastar_HB_BC[,,(burnin+1):R]
@@ -92,6 +105,21 @@ probdraw_HB = probdraw_HB[(burnin+1):R]
 rejection = rejection[(burnin+1):R,]
 loglike_BC = loglike_BC[(burnin+1):R]
 plot(loglike_BC, type="l")
+
+data.frame(loglikelihood = loglike_BC) %>% 
+  mutate(index = row_number()) %>% 
+  ggplot(aes(x = index, y = loglikelihood)) +
+  geom_line(alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE) +
+  stat_poly_eq(formula = y ~ x, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~~~~")), 
+               parse=TRUE,label.x.npc = "right", label.y.npc = 0.01,
+               output.type = "expression") +
+  theme_bw()
+
+lmdata <- data.frame(loglikelihood = loglike_BC) %>% 
+  mutate(index = row_number())
+lm(loglike_BC ~ index, data = lmdata) %>% 
+          summary()
 
 R = dim(betastar_HB_BC)[3]
 N = dim(betastar_HB_BC)[1]
@@ -512,10 +540,44 @@ welf_loss_total <- welf_loss_avg * 82000000
 colnames(beta_BC_LLMns) <- c("Budget", "Price", products)
 windows()
 cor(beta_BC_LLMns) %>% 
-  ggcorrplot()
+  ggcorrplot(type = "lower", lab = TRUE)
 
 cor(beta_BC_LLMns[,c(1,2,4,7,9,10,11)]) %>% 
   ggcorrplot(type = "lower", lab = TRUE)
+
+# histogram of all betas
+beta_BC_LLMns %>% 
+    data.frame() %>% 
+      gather(key = "beer_brand") %>% 
+        ggplot(aes(value)) +
+          geom_histogram() +
+          facet_wrap(~beer_brand, scales = "free") +
+          theme_bw()
+
+# density plot of five brands (all in one)
+beta_BC_LLMns[,c(4,7,9,10,11)] %>% 
+  data.frame() %>% 
+  gather(key = "beer_brand") %>% 
+  ggplot(aes(value)) +
+  geom_density(aes(fill = beer_brand), position="identity", alpha = 0.3) +
+  xlim(c(-10, 20)) +
+  ylim(c(0, 0.095)) +
+  scale_fill_manual(values = c("#FD0505", "#FF9A9A", "#000CD3", "#00C1EA", "green")) +
+  theme_bw() +
+  theme(legend.position = c(0.2, 0.8),
+        legend.direction = "vertical")
+
+# density plot of five brands (separate)
+beta_BC_LLMns[,c(4,7,9,10,11)] %>% 
+  data.frame() %>% 
+  gather(key = "beer_brand") %>% 
+  ggplot(aes(value)) +
+  geom_density(aes(fill = beer_brand), position="identity") +
+  xlim(c(-10, 20)) +
+  ylim(c(0, 0.1)) +
+  scale_fill_manual(values = c("#FD0505", "#FF9A9A", "#000CD3", "#00C1EA", "green"), guide = FALSE) +
+  facet_wrap(~beer_brand) +
+  theme_bw()
 
 # basic plot of one scenario
 scenarios[["brand_comp"]] %>% 
@@ -524,11 +586,12 @@ scenarios[["brand_comp"]] %>%
       geom_bar(stat = "identity", position = "dodge") +
       coord_flip() +
       theme(axis.text.x = element_text(angle = 90)) +
-      facet_wrap(~variable, scales = "free_x")
+      facet_wrap(~variable, scales = "free_x") +
+      theme_bw()
 
 # uses all competitive situations in the scenarios list and plots them side by side
 windows()
-scenarios %>% 
+scenarios[c("brand_comp", "full_comp")] %>% 
   melt() %>% 
   rename(comp_scenario = L1) %>% 
   ggplot(aes(x = reorder(product, value) , y = value, fill = comp_scenario)) +
@@ -536,9 +599,10 @@ scenarios %>%
   coord_flip() +
   labs(x = "Beer Brand",
        y = "Price / Market Share") +
-  facet_wrap(~variable, scales = "free_x")
+  facet_wrap(~variable, scales = "free_x") +
+  theme_bw()
 
-# only five brands #c("five_full_comp", "five_brand_comp", "five_monopoly", "five_merge_comp")
+ # only five brands #c("five_full_comp", "five_brand_comp", "five_monopoly", "five_merge_comp")
 scenarios[c("five_brand_comp", "five_merge_comp")] %>% 
   melt() %>% 
   rename(comp_scenario = L1) %>% 
@@ -547,7 +611,8 @@ scenarios[c("five_brand_comp", "five_merge_comp")] %>%
   coord_flip() +
   labs(x = "Beer Brand",
        y = "Price / Market Share") +
-  facet_wrap(~variable, scales = "free_x")
+  facet_wrap(~variable, scales = "free_x") +
+  theme_bw()
 
 # price-share scatterplot, w/o outside option (either for single scenario or all)
 scenarios[["brand_comp"]] %>% 
@@ -558,7 +623,8 @@ scenarios[["brand_comp"]] %>%
     geom_smooth(method = "lm", se = FALSE) +
     stat_poly_eq(formula = y ~ x, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~~~~")), 
                  parse=TRUE,label.x.npc = "right",
-                 output.type = "expression")
+                 output.type = "expression") +
+    theme_bw()
 
 cor(scenarios[["brand_comp"]]$equi_price, scenarios[["brand_comp"]]$equi_share)
 
