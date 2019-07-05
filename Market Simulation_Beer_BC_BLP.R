@@ -21,6 +21,7 @@ library(FixedPoint)
 library(dplyr)
 library(reshape2)
 library(tidyr)
+library(ggcorrplot)
 
 ###Increase memory capacities
 memory.limit(size=100000000)
@@ -245,9 +246,208 @@ res_matrix <- data.frame(
 # add to results list
 scenarios[["brand_comp"]] <- res_matrix
 
+
+###########################################################################
+# Only two Amstel, two Estrella and one Heineken (Ownership according to brands)
+###########################################################################
+
+# ingredients
+nplayers = 5 + 1 
+min_p = 0.22
+prices_init = c(rep(min_p,nplayers - 1),0)
+designBase = rbind(diag(nplayers-1),rep(0,nplayers-1))
+Xdata = cbind(prices_init,designBase); colnames(Xdata)[1] = "PRICE" 
+Ownership = array(0,dim=c(nplayers,nplayers))
+Ownership[1:(nplayers-1),1:(nplayers-1)] = diag((nplayers-1))
+
+# define which brands compete on price, i.e. are owned by different companies
+# Amstel (two brands)
+for (i in 1:2){
+  for (k in 1:2){
+    Ownership[i,k] <- 1
+  }
+}
+# Estrella (two brands)
+for (i in 3:4){
+  for (k in 3:4){
+    Ownership[i,k] <- 1
+  }
+}
+
+
+inside_row=which(rowSums(Ownership) != 0, arr.ind = TRUE)
+p0=Xdata[inside_row,"PRICE"]
+costBase = as.vector(prices_init*0.9)
+MC = costBase[inside_row]
+
+### Run Fixed-Point algorithm with Xi-markup equation (reliable and fast: See Table 3 in paper for comparison)
+p_Markup_Xi_FixedPoint_BC_BLP = FixedPoint(Function = function(price_vec) FixedPoint_BLP_Xi(price_vec,MC=MC,
+                                                                                            ownership=Ownership,Xdata=Xdata,beta_draws=beta_BC_LLMns[,(c(1,2,4,7,9,10,11))],pr=1), 
+                                           Inputs = p0, MaxIter = 10000, ConvergenceMetricThreshold = 1e-10, Method = "Anderson")
+
+p_Markup_Xi_FixedPoint_BC_BLP$FixedPoint
+
+Optimal_prices <- array(0,dim=c(nplayers,2))
+rownames(Optimal_prices) = c(products[c(2,5,7,8,9)],"Outside")
+colnames(Optimal_prices) = c("Equilibrium Price","Equilibrium Shares")
+# Save equi-prices
+Optimal_prices[,"Equilibrium Price"] <-c(p_Markup_Xi_FixedPoint_BC_BLP$FixedPoint,0)
+computeShares_BC_BLP <- function(prices, beta, design, pr = 1) {
+  fullDesign <- cbind(prices,design) ###put prices to the last position here
+  probabilities_BC_BLP_log_cpp(beta,fullDesign,pr)
+}
+Optimal_prices[,"Equilibrium Shares"] <- as.vector(computeShares_BC_BLP(Optimal_prices[,"Equilibrium Price"],
+                                                                        beta_BC_LLMns[,c(1,2,4,7,9,10,11)],designBase,pr=1))
+
+round(Optimal_prices,2)
+
+# store results in data frame
+res_matrix <- data.frame(
+  product = rownames(Optimal_prices),
+  equi_price = as.numeric(c(p_Markup_Xi_FixedPoint_BC_BLP$FixedPoint,0)),
+  equi_share = as.vector(computeShares_BC_BLP(Optimal_prices[,"Equilibrium Price"],
+                                              beta_BC_LLMns[,c(1,2,4,7,9,10,11)],designBase,pr=1)))
+
+
+# add to results list
+scenarios[["five_full_comp"]] <- res_matrix
+
+
+###########################################################################
+# Only two Amstel, two Estrella and one Heineken (Full Competition)
+###########################################################################
+
+# ingredients
+nplayers = 5 + 1 
+min_p = 0.22
+prices_init = c(rep(min_p,nplayers - 1),0)
+designBase = rbind(diag(nplayers-1),rep(0,nplayers-1))
+Xdata = cbind(prices_init,designBase); colnames(Xdata)[1] = "PRICE" 
+Ownership = array(0,dim=c(nplayers,nplayers))
+Ownership[1:(nplayers-1),1:(nplayers-1)] = diag((nplayers-1))
+
+inside_row=which(rowSums(Ownership) != 0, arr.ind = TRUE)
+p0=Xdata[inside_row,"PRICE"]
+costBase = as.vector(prices_init*0.9)
+MC = costBase[inside_row]
+
+### Run Fixed-Point algorithm with Xi-markup equation (reliable and fast: See Table 3 in paper for comparison)
+p_Markup_Xi_FixedPoint_BC_BLP = FixedPoint(Function = function(price_vec) FixedPoint_BLP_Xi(price_vec,MC=MC,
+                                                                                            ownership=Ownership,Xdata=Xdata,beta_draws=beta_BC_LLMns[,(c(1,2,4,7,9,10,11))],pr=1), 
+                                           Inputs = p0, MaxIter = 10000, ConvergenceMetricThreshold = 1e-10, Method = "Anderson")
+
+p_Markup_Xi_FixedPoint_BC_BLP$FixedPoint
+
+Optimal_prices <- array(0,dim=c(nplayers,2))
+rownames(Optimal_prices) = c(products[c(2,5,7,8,9)],"Outside")
+colnames(Optimal_prices) = c("Equilibrium Price","Equilibrium Shares")
+# Save equi-prices
+Optimal_prices[,"Equilibrium Price"] <-c(p_Markup_Xi_FixedPoint_BC_BLP$FixedPoint,0)
+computeShares_BC_BLP <- function(prices, beta, design, pr = 1) {
+  fullDesign <- cbind(prices,design) ###put prices to the last position here
+  probabilities_BC_BLP_log_cpp(beta,fullDesign,pr)
+}
+Optimal_prices[,"Equilibrium Shares"] <- as.vector(computeShares_BC_BLP(Optimal_prices[,"Equilibrium Price"],
+                                                                        beta_BC_LLMns[,c(1,2,4,7,9,10,11)],designBase,pr=1))
+
+round(Optimal_prices,2)
+
+# store results in data frame
+res_matrix <- data.frame(
+  product = rownames(Optimal_prices),
+  equi_price = as.numeric(c(p_Markup_Xi_FixedPoint_BC_BLP$FixedPoint,0)),
+  equi_share = as.vector(computeShares_BC_BLP(Optimal_prices[,"Equilibrium Price"],
+                                              beta_BC_LLMns[,c(1,2,4,7,9,10,11)],designBase,pr=1)))
+
+
+# add to results list
+scenarios[["five_full_comp"]] <- res_matrix
+
+###########################################################################
+# Only two Amstel, two Estrella and one Heineken (Monopoly)
+###########################################################################
+
+# ingredients
+nplayers = 5 + 1 
+min_p = 0.22
+prices_init = c(rep(min_p,nplayers - 1),0)
+designBase = rbind(diag(nplayers-1),rep(0,nplayers-1))
+Xdata = cbind(prices_init,designBase); colnames(Xdata)[1] = "PRICE" 
+Ownership = array(0,dim=c(nplayers,nplayers))
+Ownership[1:(nplayers-1),1:(nplayers-1)] = diag((nplayers-1))
+
+# define which brands compete on price, i.e. are owned by different companies
+# All five belong to the same owner
+for (i in 1:5){
+  for (k in 1:5){
+    Ownership[i,k] <- 1
+  }
+}
+
+inside_row=which(rowSums(Ownership) != 0, arr.ind = TRUE)
+p0=Xdata[inside_row,"PRICE"]
+costBase = as.vector(prices_init*0.9)
+MC = costBase[inside_row]
+
+### Run Fixed-Point algorithm with Xi-markup equation (reliable and fast: See Table 3 in paper for comparison)
+p_Markup_Xi_FixedPoint_BC_BLP = FixedPoint(Function = function(price_vec) FixedPoint_BLP_Xi(price_vec,MC=MC,
+                                                                                            ownership=Ownership,Xdata=Xdata,beta_draws=beta_BC_LLMns[,(c(1,2,4,7,9,10,11))],pr=1), 
+                                           Inputs = p0, MaxIter = 10000, ConvergenceMetricThreshold = 1e-10, Method = "Anderson")
+
+p_Markup_Xi_FixedPoint_BC_BLP$FixedPoint
+
+Optimal_prices <- array(0,dim=c(nplayers,2))
+rownames(Optimal_prices) = c(products[c(2,5,7,8,9)],"Outside")
+colnames(Optimal_prices) = c("Equilibrium Price","Equilibrium Shares")
+# Save equi-prices
+Optimal_prices[,"Equilibrium Price"] <-c(p_Markup_Xi_FixedPoint_BC_BLP$FixedPoint,0)
+computeShares_BC_BLP <- function(prices, beta, design, pr = 1) {
+  fullDesign <- cbind(prices,design) ###put prices to the last position here
+  probabilities_BC_BLP_log_cpp(beta,fullDesign,pr)
+}
+Optimal_prices[,"Equilibrium Shares"] <- as.vector(computeShares_BC_BLP(Optimal_prices[,"Equilibrium Price"],
+                                                                        beta_BC_LLMns[,c(1,2,4,7,9,10,11)],designBase,pr=1))
+
+round(Optimal_prices,2)
+
+# store results in data frame
+res_matrix <- data.frame(
+  product = rownames(Optimal_prices),
+  equi_price = as.numeric(c(p_Markup_Xi_FixedPoint_BC_BLP$FixedPoint,0)),
+  equi_share = as.vector(computeShares_BC_BLP(Optimal_prices[,"Equilibrium Price"],
+                                              beta_BC_LLMns[,c(1,2,4,7,9,10,11)],designBase,pr=1)))
+
+
+# add to results list
+scenarios[["five_monopoly"]] <- res_matrix
+
+########################################################
+# Compute 
+########################################################
+
+# Average Prices in the Market, Weighted by Market Share
+
+w_a_p_full_comp <- t(scenarios[["full_comp"]]$equi_price) %*% scenarios[["full_comp"]]$equi_share
+w_a_p_brand_comp <- t(scenarios[["brand_comp"]]$equi_price) %*% scenarios[["brand_comp"]]$equi_share
+
+w_a_p_five_full_comp <- t(scenarios[["five_full_comp"]]$equi_price) %*% scenarios[["five_full_comp"]]$equi_share
+w_a_p_five_brand_comp <- t(scenarios[["five_brand_comp"]]$equi_price) %*% scenarios[["five_brand_comp"]]$equi_share
+
+w_a_p_brand_comp / w_a_p_full_comp
+w_a_p_five_brand_comp / w_a_p_five_full_comp
+
 ########################################################
 # Plotting
 ########################################################
+
+# corrplot of betas for all 15 brands
+colnames(beta_BC_LLMns) <- c("Budget", "Price", products)
+windows()
+cor(beta_BC_LLMns) %>% 
+  ggcorrplot()
+
+cor(beta_BC_LLMns[,c(1,2,4,7,9,10,11)]) %>% 
+  ggcorrplot(type = "lower", lab = TRUE)
 
 # basic plot of one scenario
 scenarios[["brand_comp"]] %>% 
@@ -259,6 +459,7 @@ scenarios[["brand_comp"]] %>%
       facet_wrap(~variable, scales = "free_x")
 
 # uses all competitive situations in the scenarios list and plots them side by side
+windows()
 scenarios %>% 
   melt() %>% 
   rename(comp_scenario = L1) %>% 
@@ -269,9 +470,20 @@ scenarios %>%
        y = "Price / Market Share") +
   facet_wrap(~variable, scales = "free_x")
 
+# only five brands
+scenarios[c("five_full_comp", "five_brand_comp", "five_monopoly")] %>% 
+  melt() %>% 
+  rename(comp_scenario = L1) %>% 
+  ggplot(aes(x = reorder(product, value) , y = value, fill = comp_scenario)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  coord_flip() +
+  labs(x = "Beer Brand",
+       y = "Price / Market Share") +
+  facet_wrap(~variable, scales = "free_x")
+
 # price-share scatterplot, w/o outside option (either for single scenario or all)
-#scenarios[["brand_comp"]] %>% 
-bind_rows(scenarios) %>% 
+scenarios[["brand_comp"]] %>% 
+#bind_rows(scenarios) %>% 
   filter(product != "Outside") %>% 
     ggplot(aes(x = equi_price, y = equi_share)) +
     geom_point() +
