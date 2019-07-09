@@ -534,7 +534,7 @@ welf_loss_total <- welf_loss_avg * 82000000
 
 
 ########################################################
-# Compute profits for all scenarios
+# Compute contribution margin * market share for all scenarios
 ########################################################
 MC <- rep(0.198, 15)
 for (i in 1:length(scenarios)) { #
@@ -546,6 +546,11 @@ for (i in 1:length(scenarios)) { #
   
 }
 
+# compute CMxMS for both Amstel and Heineken before and after merger
+CMxMS_before <- sum(scenarios$five_brand_comp[c(1,2,5),"CMxMS"])
+CMxMS_after <- sum(scenarios$five_merge_comp[c(1,2,5),"CMxMS"])
+
+CMxMS_after - CMxMS_before
 
 ########################################################
 # Plotting
@@ -614,7 +619,7 @@ scenarios[c("brand_comp", "full_comp")] %>%
   geom_bar(stat = "identity", colour="black", position = "dodge") +
   coord_flip() +
   labs(x = "Beer Brand",
-       y = "Price / Market Share") +
+       y = NULL) +
   facet_wrap(~variable, scales = "free_x") +
   scale_fill_brewer(palette = "Dark2") +
   theme_bw()
@@ -627,7 +632,7 @@ scenarios[c("five_brand_comp", "five_merge_comp", "five_monopoly")] %>%
   geom_bar(stat = "identity", colour="black", position = "dodge") +
   coord_flip() +
   labs(x = "Beer Brand",
-       y = "Price / Market Share") +
+       y = NULL) +
   facet_wrap(~variable, scales = "free_x") +
   scale_fill_brewer(palette = "Dark2") +
   theme_bw()
