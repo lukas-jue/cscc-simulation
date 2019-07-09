@@ -532,6 +532,21 @@ w_a_p_five_brand_comp / w_a_p_five_full_comp
 welf_loss_avg <- 102/(1/3)*(w_a_p_five_merge - w_a_p_five_brand_comp)
 welf_loss_total <- welf_loss_avg * 82000000
 
+
+########################################################
+# Compute profits for all scenarios
+########################################################
+MC <- rep(0.198, 15)
+for (i in 1:length(scenarios)) { #
+  # position of outside good
+  out_pos <- length(scenarios[[i]]$equi_price)
+  
+  # compute contribubtion margin times market share for every brand in every scenario in the list
+  scenarios[[i]]$CMxMS <- c((scenarios[[i]][-out_pos,"equi_price"] - MC[1:out_pos-1]) * scenarios[[i]][-out_pos,"equi_share"], NA)
+  
+}
+
+
 ########################################################
 # Plotting
 ########################################################
