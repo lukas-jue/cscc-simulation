@@ -116,6 +116,7 @@ data.frame(loglikelihood = loglike_BC) %>%
                output.type = "expression") +
   theme_bw()
 
+
 lmdata <- data.frame(loglikelihood = loglike_BC) %>% 
   mutate(index = row_number())
 lm(loglike_BC ~ index, data = lmdata) %>% 
@@ -625,7 +626,7 @@ scenarios[c("brand_comp", "full_comp")] %>%
   theme_bw()
 
  # only five brands #c("five_full_comp", "five_brand_comp", "five_monopoly", "five_merge_comp")
-scenarios[c("five_brand_comp", "five_merge_comp", "five_monopoly")] %>% 
+scenarios[c("five_full_comp","five_brand_comp", "five_merge_comp", "five_monopoly")] %>% 
   melt() %>% 
   rename(comp_scenario = L1) %>% 
   ggplot(aes(x = reorder(product, value) , y = value, fill = comp_scenario)) +
