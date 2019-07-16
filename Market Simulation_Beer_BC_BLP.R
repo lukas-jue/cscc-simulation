@@ -405,6 +405,69 @@ res_matrix <- data.frame(
 # add to results list
 scenarios[["five_merge_comp"]] <- res_matrix
 
+###########################################################################
+# Heineken and Estrella Merger
+###########################################################################
+
+# ingredients
+nplayers = 5 + 1 
+min_p = 0.22
+prices_init = c(rep(min_p,nplayers - 1),0)
+designBase = rbind(diag(nplayers-1),rep(0,nplayers-1))
+Xdata = cbind(prices_init,designBase); colnames(Xdata)[1] = "PRICE" 
+Ownership = array(0,dim=c(nplayers,nplayers))
+Ownership[1:(nplayers-1),1:(nplayers-1)] = diag((nplayers-1))
+
+# define which brands compete on price, i.e. are owned by different companies
+# Amstel (two brands)
+for (i in c(1:2)){
+  for (k in c(1:2)){
+    Ownership[i,k] <- 1
+  }
+}
+# Estrella (two brands)
+for (i in c(3:4,5)){
+  for (k in c(3:4,5)){
+    Ownership[i,k] <- 1
+  }
+}
+
+inside_row=which(rowSums(Ownership) != 0, arr.ind = TRUE)
+p0=Xdata[inside_row,"PRICE"]
+costBase = as.vector(prices_init*0.9)
+MC = costBase[inside_row]
+
+### Run Fixed-Point algorithm with Xi-markup equation (reliable and fast: See Table 3 in paper for comparison)
+p_Markup_Xi_FixedPoint_BC_BLP = FixedPoint(Function = function(price_vec) FixedPoint_BLP_Xi(price_vec,MC=MC,
+                                                                                            ownership=Ownership,Xdata=Xdata,beta_draws=beta_BC_LLMns[,(c(1,2,4,7,9,10,11))],pr=1), 
+                                           Inputs = p0, MaxIter = 10000, ConvergenceMetricThreshold = 1e-10, Method = "Anderson")
+
+p_Markup_Xi_FixedPoint_BC_BLP$FixedPoint
+
+Optimal_prices <- array(0,dim=c(nplayers,2))
+rownames(Optimal_prices) = c(products[c(2,5,7,8,9)],"Outside")
+colnames(Optimal_prices) = c("Equilibrium Price","Equilibrium Shares")
+# Save equi-prices
+Optimal_prices[,"Equilibrium Price"] <-c(p_Markup_Xi_FixedPoint_BC_BLP$FixedPoint,0)
+computeShares_BC_BLP <- function(prices, beta, design, pr = 1) {
+  fullDesign <- cbind(prices,design) ###put prices to the last position here
+  probabilities_BC_BLP_log_cpp(beta,fullDesign,pr)
+}
+Optimal_prices[,"Equilibrium Shares"] <- as.vector(computeShares_BC_BLP(Optimal_prices[,"Equilibrium Price"],
+                                                                        beta_BC_LLMns[,c(1,2,4,7,9,10,11)],designBase,pr=1))
+
+round(Optimal_prices,2)
+
+# store results in data frame
+res_matrix <- data.frame(
+  product = rownames(Optimal_prices),
+  equi_price = as.numeric(c(p_Markup_Xi_FixedPoint_BC_BLP$FixedPoint,0)),
+  equi_share = as.vector(computeShares_BC_BLP(Optimal_prices[,"Equilibrium Price"],
+                                              beta_BC_LLMns[,c(1,2,4,7,9,10,11)],designBase,pr=1)))
+
+
+# add to results list
+scenarios[["five_merge_comp_estr"]] <- res_matrix
 
 ###########################################################################
 # Only two Amstel, two Estrella and one Heineken (Full Competition)
@@ -525,6 +588,7 @@ w_a_p_five_full_comp <- t(scenarios[["five_full_comp"]]$equi_price) %*% scenario
 w_a_p_five_brand_comp <- t(scenarios[["five_brand_comp"]]$equi_price) %*% scenarios[["five_brand_comp"]]$equi_share
 w_a_p_five_monopoly <- t(scenarios[["five_monopoly"]]$equi_price) %*% scenarios[["five_monopoly"]]$equi_share
 w_a_p_five_merge <- t(scenarios[["five_merge_comp"]]$equi_price) %*% scenarios[["five_merge_comp"]]$equi_share
+w_a_p_five_merge_estr <- t(scenarios[["five_merge_comp_estr"]]$equi_price) %*% scenarios[["five_merge_comp_estr"]]$equi_share
 
 w_a_p_brand_comp / w_a_p_full_comp
 w_a_p_five_brand_comp / w_a_p_five_full_comp
@@ -548,10 +612,20 @@ for (i in 1:length(scenarios)) { #
 }
 
 # compute CMxMS for both Amstel and Heineken before and after merger
+CMxMS_full_comp <- sum(scenarios$five_full_comp[c(1,2,5),"CMxMS"])
 CMxMS_before <- sum(scenarios$five_brand_comp[c(1,2,5),"CMxMS"])
 CMxMS_after <- sum(scenarios$five_merge_comp[c(1,2,5),"CMxMS"])
+CMxMS_monop <- sum(scenarios$five_monopoly[c(1,2,5),"CMxMS"])
 
-CMxMS_after - CMxMS_before
+CMxMS_before_estr <- sum(scenarios$five_brand_comp[c(3:5),"CMxMS"])
+CMxMS_after_estr <- sum(scenarios$five_merge_comp_estr[c(3:5),"CMxMS"])
+
+
+CMxMS_after / CMxMS_before
+CMxMS_monop / CMxMS_full_comp
+CMxMS_monop / CMxMS_after
+
+CMxMS_after_estr / CMxMS_before_estr
 
 ########################################################
 # Plotting
@@ -652,3 +726,19 @@ scenarios[["brand_comp"]] %>%
 
 cor(scenarios[["brand_comp"]]$equi_price, scenarios[["brand_comp"]]$equi_share)
 
+# bivariate denisity plot
+hist(beta_BC_LLMns[,c(4,7)])
+beta_BC_LLMns[,c(4,7)] %>% 
+  data.frame() %>% 
+  gather(key = "beer_brand") %>% 
+  ggplot(aes(value)) +
+  geom_density(aes(fill = beer_brand), position="identity")
+
+data.frame(beta_BC_LLMns[,c(4,7)])%>% 
+  ggplot(aes_string(x = "Amstel.Extra.Lata.33.cl", y = "Amstel.Clasica.Lata.33.cl")) +
+  stat_density_2d(aes(fill = ..level..), geom = "polygon")+
+  scale_fill_continuous(low="lavenderblush", high="blue")+
+  geom_abline(slope = 1) +
+  labs(fill = "density") +
+  #theme(legend.title = element_text("density")) +
+  theme_bw()
