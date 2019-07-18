@@ -664,14 +664,14 @@ beta_BC_LLMns[,c(4,7,9,10,11)] %>%
         legend.direction = "vertical")
 
 # density plot of five brands (separate)
-beta_BC_LLMns[,c(4,7,9,10,11)] %>% 
+beta_BC_LLMns[,c(2,4,7,9,10,11)] %>% 
   data.frame() %>% 
   gather(key = "beer_brand") %>% 
   ggplot(aes(value)) +
   geom_density(aes(fill = beer_brand), position="identity") +
-  xlim(c(-10, 20)) +
-  ylim(c(0, 0.1)) +
-  scale_fill_manual(values = c("#FD0505", "#FF9A9A", "#000CD3", "#00C1EA", "green"), guide = FALSE) +
+  xlim(c(-10, 25)) +
+  ylim(c(0, 0.13)) +
+  scale_fill_manual(values = c("#FD0505", "#FF9A9A", "#000CD3", "#00C1EA", "green", "grey"), guide = FALSE) +
   facet_wrap(~beer_brand) +
   theme_bw()
 
