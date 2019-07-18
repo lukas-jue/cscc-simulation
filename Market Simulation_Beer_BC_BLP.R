@@ -713,8 +713,9 @@ scenarios[c("five_full_comp","five_brand_comp", "five_merge_comp", "five_monopol
   theme_bw()
 
 # price-share scatterplot, w/o outside option (either for single scenario or all)
-scenarios[["brand_comp"]] %>% 
-#bind_rows(scenarios) %>% 
+#scenarios[["brand_comp"]] %>% 
+scenarios[c("five_full_comp","five_brand_comp", "five_merge_comp", "five_monopoly")] %>% 
+bind_rows() %>% 
   filter(product != "Outside") %>% 
     ggplot(aes(x = equi_price, y = equi_share)) +
     geom_point() +
